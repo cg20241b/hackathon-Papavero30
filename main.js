@@ -226,6 +226,51 @@ loader.load('/font/Race Sport_Regular.json', function(font) {
 // Mengatur posisi kamera
 camera.position.z = 5;
 
+// Add movement state variables
+const moveSpeed = 0.1;
+const cameraSpeed = 0.1;
+let keys = {
+    w: false,
+    s: false,
+    a: false,
+    d: false
+};
+
+// Add event listeners for keyboard controls
+window.addEventListener('keydown', (e) => {
+    switch(e.key.toLowerCase()) {
+        case 'w':
+            keys.w = true;
+            break;
+        case 's':
+            keys.s = true;
+            break;
+        case 'a':
+            keys.a = true;
+            break;
+        case 'd':
+            keys.d = true;
+            break;
+    }
+});
+
+window.addEventListener('keyup', (e) => {
+    switch(e.key.toLowerCase()) {
+        case 'w':
+            keys.w = false;
+            break;
+        case 's':
+            keys.s = false;
+            break;
+        case 'a':
+            keys.a = false;
+            break;
+        case 'd':
+            keys.d = false;
+            break;
+    }
+});
+
 // Fungsi untuk menganimasikan scene
 function animate() {
     requestAnimationFrame(animate);
@@ -234,12 +279,23 @@ function animate() {
     letterMaterial.uniforms.time.value += 0.05;
     numberMaterial.uniforms.time.value += 0.05;
     
-    // Animasi posisi dan rotasi cube
-    const time = Date.now() * 0.001;
-    cube.position.x = Math.sin(time) * 0.5;
-    cube.position.y = Math.cos(time) * 0.3;
+    // Handle cube movement with keyboard only
+    if (keys.w) {
+        cube.position.y += moveSpeed;
+    }
+    if (keys.s) {
+        cube.position.y -= moveSpeed;
+    }
     
-    // Tambahkan rotasi cube yang lebih halus
+    // Handle camera movement
+    if (keys.a) {
+        camera.position.x -= cameraSpeed;
+    }
+    if (keys.d) {
+        camera.position.x += cameraSpeed;
+    }
+    
+    // Keep only rotation animation for cube
     cube.rotation.x += 0.01;
     cube.rotation.y += 0.01;
     cube.rotation.z += 0.005;
