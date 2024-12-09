@@ -52,22 +52,22 @@ const glowingCubeMaterial = new THREE.ShaderMaterial({
     blending: THREE.AdditiveBlending
 });
 
-// Update shader untuk material huruf agar menerima cahaya putih
-const createGlowMaterial = (baseColor) => {
+// Update shader for alphabet and digit with different specular properties
+const createAlphabetMaterial = (baseColor) => {
     return new THREE.ShaderMaterial({
         uniforms: {
-            time: { value: 0 },
             lightPos: { value: new THREE.Vector3(0, 0, 0) },
-            baseColor: { value: baseColor }
+            baseColor: { value: baseColor },
+            time: { value: 0 }
         },
         vertexShader: `
-            uniform float time;
             varying vec3 vPosition;
             varying vec3 vNormal;
+            uniform float time;
             
             void main() {
                 vPosition = position;
-                vNormal = normal;
+                vNormal = normalize(normalMatrix * normal);
                 vec3 pos = position;
                 pos.y += sin(time + position.x) * 0.1;
                 gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
@@ -80,19 +80,80 @@ const createGlowMaterial = (baseColor) => {
             varying vec3 vNormal;
             
             void main() {
+                // Ambient light (using 0.400 as per requirement)
+                float ambientStrength = 0.400;
+                vec3 ambient = ambientStrength * baseColor;
+                
+                // Diffuse lighting
                 vec3 lightDir = normalize(lightPos - vPosition);
-                float intensity = max(dot(vNormal, lightDir), 0.0);
-                float glowFactor = pow(intensity, 1.5) * 2.0;
-                vec3 glow = vec3(1.0) * glowFactor; // Mengubah ke cahaya putih
-                gl_FragColor = vec4(baseColor + glow, 1.0);
+                float diff = max(dot(vNormal, lightDir), 0.0);
+                vec3 diffuse = diff * baseColor;
+                
+                // Plastic-like specular (Blinn-Phong)
+                vec3 viewDir = normalize(-vPosition);
+                vec3 halfDir = normalize(lightDir + viewDir);
+                float spec = pow(max(dot(vNormal, halfDir), 0.0), 32.0);
+                vec3 specular = vec3(0.5) * spec;
+                
+                vec3 result = ambient + diffuse + specular;
+                gl_FragColor = vec4(result, 1.0);
             }
         `
     });
 };
 
-// Update material definitions
-const letterMaterial = createGlowMaterial(new THREE.Vector3(0.545, 0.0, 0.545));
-const numberMaterial = createGlowMaterial(new THREE.Vector3(0.0, 0.545, 0.0));
+const createDigitMaterial = (baseColor) => {
+    return new THREE.ShaderMaterial({
+        uniforms: {
+            lightPos: { value: new THREE.Vector3(0, 0, 0) },
+            baseColor: { value: baseColor },
+            time: { value: 0 }
+        },
+        vertexShader: `
+            varying vec3 vPosition;
+            varying vec3 vNormal;
+            uniform float time;
+            
+            void main() {
+                vPosition = position;
+                vNormal = normalize(normalMatrix * normal);
+                vec3 pos = position;
+                pos.y += sin(time + position.x) * 0.1;
+                gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
+            }
+        `,
+        fragmentShader: `
+            uniform vec3 lightPos;
+            uniform vec3 baseColor;
+            varying vec3 vPosition;
+            varying vec3 vNormal;
+            
+            void main() {
+                // Ambient light (using 0.400 as per requirement)
+                float ambientStrength = 0.400;
+                vec3 ambient = ambientStrength * baseColor;
+                
+                // Diffuse lighting
+                vec3 lightDir = normalize(lightPos - vPosition);
+                float diff = max(dot(vNormal, lightDir), 0.0);
+                vec3 diffuse = diff * baseColor;
+                
+                // Metallic specular
+                vec3 viewDir = normalize(-vPosition);
+                vec3 reflectDir = reflect(-lightDir, vNormal);
+                float spec = pow(max(dot(viewDir, reflectDir), 0.0), 64.0);
+                vec3 specular = baseColor * spec * 2.0; // Metallic reflection related to base color
+                
+                vec3 result = ambient + diffuse + specular;
+                gl_FragColor = vec4(result, 1.0);
+            }
+        `
+    });
+};
+
+// Update material definitions with new shader materials
+const letterMaterial = createAlphabetMaterial(new THREE.Vector3(0.545, 0.0, 0.545));
+const numberMaterial = createDigitMaterial(new THREE.Vector3(0.0, 0.545, 0.0));
 
 // Buat cube bercahaya dengan ukuran lebih kecil
 const cubeGeometry = new THREE.BoxGeometry(0.2, 0.2, 0.2);
