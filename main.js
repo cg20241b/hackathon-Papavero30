@@ -10,7 +10,7 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 document.body.appendChild(renderer.domElement);
 
 // Material shader khusus untuk efek animasi
-const textMaterial = new THREE.ShaderMaterial({
+const letterMaterial = new THREE.ShaderMaterial({
     uniforms: {
         time: { value: 0 }
     },
@@ -24,7 +24,26 @@ const textMaterial = new THREE.ShaderMaterial({
     `,
     fragmentShader: `
         void main() {
-            gl_FragColor = vec4(0.7, 0.2, 0.3, 1.0);
+            gl_FragColor = vec4(0.545, 0.0, 0.545, 1.0); // #8B008B Dark Magenta
+        }
+    `
+});
+
+const numberMaterial = new THREE.ShaderMaterial({
+    uniforms: {
+        time: { value: 0 }
+    },
+    vertexShader: `
+        uniform float time;
+        void main() {
+            vec3 pos = position;
+            pos.y += sin(time + position.x) * 0.1;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
+        }
+    `,
+    fragmentShader: `
+        void main() {
+            gl_FragColor = vec4(0.0, 0.545, 0.0, 1.0); // #008B00 Complementary color
         }
     `
 });
@@ -38,7 +57,7 @@ loader.load('https://threejs.org/examples/fonts/helvetiker_regular.typeface.json
         size: 1,
         height: 0.2,
     });
-    const letterMesh = new THREE.Mesh(letterGeometry, textMaterial);
+    const letterMesh = new THREE.Mesh(letterGeometry, letterMaterial);
     letterMesh.position.set(-2, 0, 0);
     scene.add(letterMesh);
 
@@ -48,7 +67,7 @@ loader.load('https://threejs.org/examples/fonts/helvetiker_regular.typeface.json
         size: 1,
         height: 0.2,
     });
-    const numberMesh = new THREE.Mesh(numberGeometry, textMaterial);
+    const numberMesh = new THREE.Mesh(numberGeometry, numberMaterial);
     numberMesh.position.set(2, 0, 0);
     scene.add(numberMesh);
 });
@@ -59,7 +78,8 @@ camera.position.z = 5;
 // Fungsi untuk menganimasikan scene
 function animate() {
     requestAnimationFrame(animate);
-    textMaterial.uniforms.time.value += 0.05;
+    letterMaterial.uniforms.time.value += 0.05;
+    numberMaterial.uniforms.time.value += 0.05;
     renderer.render(scene, camera);
 }
 animate();
