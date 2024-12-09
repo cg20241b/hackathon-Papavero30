@@ -9,66 +9,156 @@ const renderer = new THREE.WebGLRenderer();
 renderer.setSize(window.innerWidth, window.innerHeight);
 document.body.appendChild(renderer.domElement);
 
-// Material shader khusus untuk efek animasi
-const letterMaterial = new THREE.ShaderMaterial({
+// Set renderer background to black
+renderer.setClearColor(0x000000);
+
+// Modifikasi material cube untuk efek matahari dengan glow yang lebih kuat
+const glowingCubeMaterial = new THREE.ShaderMaterial({
     uniforms: {
         time: { value: 0 }
     },
     vertexShader: `
-        uniform float time;
+        varying vec3 vNormal;
+        varying vec3 vPosition;
         void main() {
-            vec3 pos = position;
-            pos.y += sin(time + position.x) * 0.1;
-            gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
+            vNormal = normalize(normalMatrix * normal);
+            vPosition = position;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
         }
     `,
     fragmentShader: `
+        varying vec3 vNormal;
+        varying vec3 vPosition;
         void main() {
-            gl_FragColor = vec4(0.545, 0.0, 0.545, 1.0); // #8B008B Dark Magenta
+            float intensity = pow(1.0 - dot(vNormal, vec3(0.0, 0.0, 1.0)), 3.0);
+            
+            // Core white color
+            vec3 coreColor = vec3(1.0, 1.0, 1.0);
+            
+            // Outer glow color (soft yellow-white)
+            vec3 glowColor = vec3(1.0, 0.9, 0.7);
+            
+            // Combine core and glow
+            vec3 finalColor = mix(coreColor, glowColor, intensity);
+            
+            // Add extra bloom effect
+            float bloom = pow(intensity, 1.5) * 3.0;
+            finalColor += glowColor * bloom;
+            
+            gl_FragColor = vec4(finalColor, 1.0);
         }
-    `
+    `,
+    transparent: true,
+    blending: THREE.AdditiveBlending
 });
 
-const numberMaterial = new THREE.ShaderMaterial({
+// Update shader untuk material huruf agar menerima cahaya putih
+const createGlowMaterial = (baseColor) => {
+    return new THREE.ShaderMaterial({
+        uniforms: {
+            time: { value: 0 },
+            lightPos: { value: new THREE.Vector3(0, 0, 0) },
+            baseColor: { value: baseColor }
+        },
+        vertexShader: `
+            uniform float time;
+            varying vec3 vPosition;
+            varying vec3 vNormal;
+            
+            void main() {
+                vPosition = position;
+                vNormal = normal;
+                vec3 pos = position;
+                pos.y += sin(time + position.x) * 0.1;
+                gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
+            }
+        `,
+        fragmentShader: `
+            uniform vec3 lightPos;
+            uniform vec3 baseColor;
+            varying vec3 vPosition;
+            varying vec3 vNormal;
+            
+            void main() {
+                vec3 lightDir = normalize(lightPos - vPosition);
+                float intensity = max(dot(vNormal, lightDir), 0.0);
+                float glowFactor = pow(intensity, 1.5) * 2.0;
+                vec3 glow = vec3(1.0) * glowFactor; // Mengubah ke cahaya putih
+                gl_FragColor = vec4(baseColor + glow, 1.0);
+            }
+        `
+    });
+};
+
+// Update material definitions
+const letterMaterial = createGlowMaterial(new THREE.Vector3(0.545, 0.0, 0.545));
+const numberMaterial = createGlowMaterial(new THREE.Vector3(0.0, 0.545, 0.0));
+
+// Buat cube bercahaya dengan ukuran lebih kecil
+const cubeGeometry = new THREE.BoxGeometry(0.2, 0.2, 0.2);
+const cube = new THREE.Mesh(cubeGeometry, glowingCubeMaterial);
+cube.position.set(0, 0, 0);
+
+// Tambahkan outer glow mesh
+const glowGeometry = new THREE.BoxGeometry(0.4, 0.4, 0.4);
+const glowMaterial = new THREE.ShaderMaterial({
     uniforms: {
         time: { value: 0 }
     },
     vertexShader: `
-        uniform float time;
+        varying vec3 vNormal;
         void main() {
-            vec3 pos = position;
-            pos.y += sin(time + position.x) * 0.1;
-            gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
+            vNormal = normalize(normalMatrix * normal);
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
         }
     `,
     fragmentShader: `
+        varying vec3 vNormal;
         void main() {
-            gl_FragColor = vec4(0.0, 0.545, 0.0, 1.0); // #008B00 Complementary color
+            float intensity = pow(0.8 - dot(vNormal, vec3(0.0, 0.0, 1.0)), 2.0);
+            vec3 glowColor = vec3(1.0, 0.9, 0.7); // Soft yellow-white glow
+            gl_FragColor = vec4(glowColor, intensity * 0.5);
         }
-    `
+    `,
+    transparent: true,
+    blending: THREE.AdditiveBlending,
+    side: THREE.BackSide
 });
+
+const glowMesh = new THREE.Mesh(glowGeometry, glowMaterial);
+cube.add(glowMesh);
+scene.add(cube);
+
+// Add point light
+const light = new THREE.PointLight(0xffffff, 1, 10);
+light.position.set(0, 0, 0);
+scene.add(light);
 
 // Memuat font untuk teks 3D
 const loader = new FontLoader();
-loader.load('https://threejs.org/examples/fonts/helvetiker_regular.typeface.json', function(font) {
+loader.load('/font/Race Sport_Regular.json', function(font) {
     // Membuat geometri huruf 'l' di sisi kiri
     const letterGeometry = new TextGeometry('l', {
         font: font,
         size: 1,
         height: 0.2,
+        curveSegments: 12,
+        bevelEnabled: false
     });
     const letterMesh = new THREE.Mesh(letterGeometry, letterMaterial);
-    letterMesh.position.set(-2, 0, 0);
+    letterMesh.position.set(-1.5, 0, 0);
     scene.add(letterMesh);
 
     // Membuat geometri angka '0' di sisi kanan
     const numberGeometry = new TextGeometry('0', {
-        font: font,
+        font: font, 
         size: 1,
         height: 0.2,
+        curveSegments: 12,
+        bevelEnabled: false
     });
     const numberMesh = new THREE.Mesh(numberGeometry, numberMaterial);
-    numberMesh.position.set(2, 0, 0);
+    numberMesh.position.set(1.5, 0, 0);
     scene.add(numberMesh);
 });
 
@@ -78,8 +168,28 @@ camera.position.z = 5;
 // Fungsi untuk menganimasikan scene
 function animate() {
     requestAnimationFrame(animate);
+    
+    // Update waktu untuk animasi
     letterMaterial.uniforms.time.value += 0.05;
     numberMaterial.uniforms.time.value += 0.05;
+    
+    // Animasi posisi dan rotasi cube
+    const time = Date.now() * 0.001;
+    cube.position.x = Math.sin(time) * 0.5;
+    cube.position.y = Math.cos(time) * 0.3;
+    
+    // Tambahkan rotasi cube yang lebih halus
+    cube.rotation.x += 0.01;
+    cube.rotation.y += 0.01;
+    cube.rotation.z += 0.005;
+    
+    // Animate glow intensity
+    glowMaterial.uniforms.time.value += 0.02;
+    
+    // Update posisi cahaya
+    letterMaterial.uniforms.lightPos.value.copy(cube.position);
+    numberMaterial.uniforms.lightPos.value.copy(cube.position);
+    
     renderer.render(scene, camera);
 }
 animate();
